@@ -14,15 +14,18 @@ namespace Mocap
         public bool doEyeControl;
         public bool doHeadControl;
         public Transform lookAtTarget;
-        
+
         public bool doHeadRoll;
         public Transform headTarget;
         public Vector3 headOrientationEuler;
-        
+
 
         Animator animator;
         private Quaternion headBoneOrientation = Quaternion.identity;
         private Transform headBone = null;
+        //private Transform footBoneL = null;
+        //private Transform footBoneR = null;
+        private readonly Vector3 kneeHintOffset = new Vector3(0f, .5f, 1f);
 
         private void Awake()
         {
@@ -32,11 +35,9 @@ namespace Mocap
         private void Start()
         {
             headBone = animator?.GetBoneTransform(HumanBodyBones.Head);
+            //footBoneL = animator?.GetBoneTransform(HumanBodyBones.LeftFoot);
+            //footBoneR = animator?.GetBoneTransform(HumanBodyBones.RightFoot);
             headBoneOrientation = Quaternion.Inverse(Quaternion.Euler(headOrientationEuler));
-            //if (null != headBone)
-            //{
-            //    headBoneOrientation = headBone.localRotation;
-            //}
         }
 
         void OnAnimatorIK()
@@ -48,9 +49,10 @@ namespace Mocap
             animator.SetIKRotationWeight(AvatarIKGoal.RightHand, 1f);
             animator.SetIKPositionWeight(AvatarIKGoal.LeftFoot, 1f);
             animator.SetIKRotationWeight(AvatarIKGoal.LeftFoot, 1f);
+            animator.SetIKHintPositionWeight(AvatarIKHint.LeftKnee, 1f);
             animator.SetIKPositionWeight(AvatarIKGoal.RightFoot, 1f);
             animator.SetIKRotationWeight(AvatarIKGoal.RightFoot, 1f);
-
+            animator.SetIKHintPositionWeight(AvatarIKHint.RightKnee, 1f);
 
             if (doHeadRoll && (headTarget != null))
             {
@@ -90,11 +92,19 @@ namespace Mocap
             {
                 animator.SetIKPosition(AvatarIKGoal.LeftFoot, leftFootTarget.position);
                 animator.SetIKRotation(AvatarIKGoal.LeftFoot, leftFootTarget.rotation);
+                animator.SetIKHintPosition(AvatarIKHint.LeftKnee,
+                    Vector3.Lerp(bodyTarget?.position ?? leftFootTarget.position + leftFootTarget.up, leftFootTarget.position, .5f) +
+                        leftFootTarget.forward
+                );
             }
             if (rightFootTarget != null)
             {
                 animator.SetIKPosition(AvatarIKGoal.RightFoot, rightFootTarget.position);
                 animator.SetIKRotation(AvatarIKGoal.RightFoot, rightFootTarget.rotation);
+                animator.SetIKHintPosition(AvatarIKHint.RightKnee,
+                    Vector3.Lerp(bodyTarget?.position ?? rightFootTarget.position + rightFootTarget.up, rightFootTarget.position, .5f) +
+                        rightFootTarget.forward
+                );
             }
         }
     }

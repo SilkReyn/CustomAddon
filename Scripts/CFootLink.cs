@@ -8,6 +8,8 @@ namespace Mocap
         public Transform pivotTrns;
         public Transform headTrns;
         public Transform handTarget;
+        public Transform altTarget=null;
+
         public float     maxDragLengthSqr;  // Max foot distance relative to head
         public float     maxLeanLengthSqr;  // How far body can lean over to stay balanced
         public Vector3   footPlacing;       // Signed offset from foot relative to hand or pivot
@@ -16,20 +18,35 @@ namespace Mocap
         public int       mouseBtn;
         
         Vector3 targetPos = Vector3.zero;
-        bool    controlStarted = false;
-        float   ctrlStartHeight = 0f;
-        static byte movingLeg = 0;
+        Vector3 altTargetPos = Vector3.zero;
+        Vector3 altTarOffs = Vector3.zero;
+        //bool  controlStarted = false;
+        //float ctrlStartHeight = 0f;
 
-        private void Awake()
-        {
-            targetPos = transform.position;
-        }
+        static byte movingLeg = 0;
 
 
         void Update()
         {
+            if (altTarget != null)
+            {
+                // Set the target position.
+                targetPos = altTarget.position + altTarOffs;
 
-            if (Input.GetMouseButton(mouseBtn))  // control override
+                // Set foot rotation
+                Vector3 vec = headTrns.position - pivotTrns.position;
+                vec.y = 0;
+                if ((vec.sqrMagnitude > Mathf.Abs(maxLeanLengthSqr)) || (Vector3.Dot(vec, pivotTrns.forward) < -Mathf.Abs(footPlacing.z)))
+                {
+                    vec = headTrns.forward;  // normed
+                    vec.y = 0;
+                    if (vec.sqrMagnitude > 0.12)  // ~20deg to world.up
+                    {
+                        transform.LookAt(transform.position + vec);
+                    }
+                }
+            }
+            /*else if (Input.GetMouseButton(mouseBtn))  // control override
             {
                 movingLeg = 0;
                 if (controlStarted == false)
@@ -38,10 +55,14 @@ namespace Mocap
                     ctrlStartHeight = handTarget.position.y - transform.position.y;
                 }
                 SetTarget(ref handTarget, 0, -ctrlStartHeight, footPlacing.z);
-            } else if(controlStarted){ // Quit manual control
+            }
+            else if (controlStarted)
+            { // Quit manual control
                 controlStarted = false;
                 targetPos.y = pivotTrns.position.y + footPlacing.y;
-            } else {
+            }*/
+            else
+            {
                 if ((isLeft && (movingLeg == 1)) || (!isLeft && (movingLeg == 2)))
                 {
                     if (Mathf.Abs((transform.position - targetPos).sqrMagnitude) < 1e-4)
@@ -50,7 +71,7 @@ namespace Mocap
                     }
                 }
 
-                if (movingLeg==0)
+                if (movingLeg == 0)  // Always keep one foot fix on the ground to avoid hovering
                 {
                     Vector3 dist = headTrns.position - transform.position;  //from trans to head
                     dist.y = 0;
@@ -62,14 +83,17 @@ namespace Mocap
                             {
                                 SetTarget(ref pivotTrns, 0, footPlacing.y, 0.0f);
                             }
-                        } else
+                        }
+                        else
                         {// lean left
                             if (!isLeft)
                             {
                                 SetTarget(ref pivotTrns, 0, footPlacing.y, 0.0f);
                             }
                         }
-                    } else {// lean over
+                    }
+                    else
+                    {// lean over
                         dist = headTrns.position - pivotTrns.position;
                         dist.y = 0;
                         if ((dist.sqrMagnitude > Mathf.Abs(maxLeanLengthSqr)) || (Vector3.Dot(dist, pivotTrns.forward) < -Mathf.Abs(footPlacing.z)))
@@ -80,7 +104,9 @@ namespace Mocap
                                 {
                                     SetTarget(ref headTrns, footPlacing.x, -headTrns.localPosition.y + footPlacing.y, 0.0f);
                                 }
-                            } else {// lean left
+                            }
+                            else
+                            {// lean left
                                 if (isLeft)
                                 {
                                     SetTarget(ref headTrns, -footPlacing.x, -headTrns.localPosition.y + footPlacing.y, 0.0f);
@@ -109,11 +135,12 @@ namespace Mocap
             // Set the target position.
             targetPos = refPos.position + (refPos.right * offsX) + (refPos.forward * offsZ);
             targetPos.y += offsY;
+            
             if (Mathf.Abs((transform.position - targetPos).sqrMagnitude) > 1e-4)
             {
                 movingLeg = isLeft ? (byte)1 : (byte)2;
             }
-            
+
             // Set foot rotation
             Vector3 fwdHnd = refPos.forward;  // normed
             fwdHnd.y = 0;
@@ -123,6 +150,11 @@ namespace Mocap
             }
         }
 
+
+        public void CalibrateTrackedTargetNow()
+        {
+            altTarOffs = (null == altTarget) ? Vector3.zero :  transform.position - altTarget.position;
+        }
     }
 
 }

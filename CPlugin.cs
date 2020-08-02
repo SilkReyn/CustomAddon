@@ -20,13 +20,12 @@ namespace CustomAddon
 
         public string Name { get; } = "Custom Addon";
 
-        public string Version { get; } = "1.0.0";
+        public string Version { get; } = "1.3.3";
         
         AssetBundle mAssetBundle = null;  // data needs to remain in memory, because of direct link
         GameObject mCustomPrefab = null;
         GameObject mAvatarBase = null;
         GameObject[] mAvatars = new GameObject[3];
-        //GameObject mRotatorHook = null;
 
         Mocap.CChestLink mAvatarProp = null;
         
@@ -70,18 +69,13 @@ namespace CustomAddon
                     return;
                 }
 
-                GameObject go;// = GameObject.Find("PlayerRoot/AvatarsRoot/AvatarPlaceholder/HeartYOffset/PlayerChest");
-                const int cullLayer = 5; // zero based, 6th is "NotVisibleInVR"
-                /*Transform[] children = mCustomPrefab.transform.Find("IK_Link_Pivot/YOHIOloid")?.GetComponentsInChildren<Transform>();
-                foreach (Transform childTrns in children)  // all childs in hierachy
-                {
-                    childTrns.gameObject.layer = cullLayer;
-                }*/
-                Transform parent = mCustomPrefab.transform.Find("IK_Link_Pivot/YOHIOloid");
+                GameObject go;
+                const int cullLayer = 8; // zero based, "NotVisibleInVR" (5: FirstPersonVisible)
+                Transform parent = mCustomPrefab.transform.Find("IK_Link_Pivot/YohioLoid");
                 for (int i = parent.childCount - 1; i >= 0; i--)
                 {
                     go = parent.GetChild(i).gameObject;  //direct childs
-                    if ((go != null) && ((go.name == "Hair") || (go.name == "Head")))
+                    if ((go != null) && ((go.name == "Hair_Mesh") || (go.name == "Head_Mesh")))
                     {
                         go.layer = cullLayer;
                     }
@@ -97,17 +91,24 @@ namespace CustomAddon
                     }
                 }
 
-                go = mCustomPrefab.transform.Find("IK_Link_Pivot/SonicoKi/hair_front_curl")?.gameObject;
+                go = mCustomPrefab.transform.Find("IK_Link_Pivot/SonicoKB/hair_front")?.gameObject;
                 if (null != go)
                 {
                     go.layer = cullLayer;
                 }
-                go = mCustomPrefab.transform.Find("IK_Link_Pivot/SonicoKi/head")?.gameObject;
+                go = mCustomPrefab.transform.Find("IK_Link_Pivot/SonicoKB/head")?.gameObject;
                 if (null != go)
                 {
                     go.layer = cullLayer;
                 }
 
+                var hands = mCustomPrefab.GetComponentsInChildren<Mocap.CHandTracking>();
+                foreach (var hand in hands)
+                {// Controller and game specific offset adjustment
+                    hand.offset.x = hand.IsLeft ? -0.08f : 0.08f;
+                    hand.offset.y = 0.03f;
+                    hand.offset.z = -0.14f;
+                }
                 mAvatarProp = mAvatarBase.transform.Find("IK_Link_Chest")?.GetComponent<Mocap.CChestLink>();
             };
 
@@ -131,7 +132,6 @@ namespace CustomAddon
         public void OnLevelWasLoaded(int level)
         {
             isSceneLoaded = true;
-            //mRotatorHook = GameObject.Find("PlayerRoot/SpecialCams/Rotate360CCW-Rotator");
         }
 
 
@@ -153,11 +153,13 @@ namespace CustomAddon
 
                     if (mAvatarBase != null)
                     {
-                        GameObject.Find("PlayerRoot/AvatarsRoot/AvatarPlaceholder")?.SetActive(false);
                         UnityEngine.Object.DontDestroyOnLoad(mAvatarBase);  // Still gets unload or destroyed manually.
-                        mAvatars[0] = mAvatarBase.transform.Find("IK_Link_Pivot/YOHIOloid").gameObject;
+                        mAvatars[0] = mAvatarBase.transform.Find("IK_Link_Pivot/YohioLoid").gameObject;
                         mAvatars[1] = mAvatarBase.transform.Find("IK_Link_Pivot/Sakura").gameObject;
-                        mAvatars[2] = mAvatarBase.transform.Find("IK_Link_Pivot/SonicoKi").gameObject;
+                        mAvatars[2] = mAvatarBase.transform.Find("IK_Link_Pivot/SonicoKB").gameObject;
+
+                        GameObject.Find("TrackedInput/TrackingOrigin/HMD/Model")?.SetActive(false);
+                        ToggleVrGloves(0);
                     }
                 }
                 else
@@ -165,6 +167,8 @@ namespace CustomAddon
                     //mAvatarBase.SetActive(!mAvatarBase.activeSelf);
                     UnityEngine.Object.Destroy(mAvatarBase);
                     mAvatarBase = null;
+                    GameObject.Find("TrackedInput/TrackingOrigin/HMD/Model")?.SetActive(true);
+                    ToggleVrGloves(1);
                 }
             }
 
@@ -177,15 +181,6 @@ namespace CustomAddon
             {
                 mAvatarBase.transform.rotation = Quaternion.Euler(0, 45, 0) * mAvatarBase.transform.rotation;
             }
-
-            //else if (Input.GetKey(KeyCode.Home)) unnecessary
-            //{
-            //    mAvatarBase.transform.localPosition = Vector3.zero;
-            //    if (mAvatars[mAvN] != null)
-            //    {
-            //        mAvatars[mAvN].transform.localPosition = Vector3.zero;
-            //    }
-            //}
 
             //else if (Input.GetKey(KeyCode.C)) does not work
             //{
@@ -225,15 +220,26 @@ namespace CustomAddon
                 }
             }
 
-            //else if (Input.GetKey(KeyCode.R)) does not work
-            //{
-            //    if (null != mRotatorHook)
-            //    {
-            //        mRotatorHook.transform.rotation *= Quaternion.Euler(0, Time.deltaTime * 6f, 0);
-            //    }
-            //}
-        }
+            else if (Input.GetKeyUp(KeyCode.G)) 
+            {
+                ToggleVrGloves();
+            }
 
+            else if (Input.GetKeyUp(KeyCode.C))  // Configure and calibrate foot trackers
+            {
+                var leftTar = GameObject.Find("TrackedInput/TrackingOrigin/ViveTrackers/Tracker - Left Foot")?.transform;
+                var rightTar = GameObject.Find("TrackedInput/TrackingOrigin/ViveTrackers/Tracker - Right Foot")?.transform;
+                var feets = mAvatarBase.GetComponentsInChildren<Mocap.CFootLink>();
+                if (null != feets)
+                {
+                    foreach (var foot in feets)
+                    {
+                        foot.altTarget = foot.isLeft ? leftTar : rightTar;
+                        foot.CalibrateTrackedTargetNow();
+                    }
+                }
+            }
+        }
 
         void SwapAvatar()
         {
@@ -242,6 +248,14 @@ namespace CustomAddon
             mAvatars[mAvN]?.SetActive(true);
         }
 
-    };// Class CPlugin
+        void ToggleVrGloves(byte offOnToggle = 2)
+        {
+            var obj = GameObject.Find("Controller-Left/vr_glove_left/vr_glove_model");
+            obj?.SetActive(offOnToggle == 2 ? !obj.activeSelf : offOnToggle == 1);
+            obj = GameObject.Find("Controller-Right/vr_glove_right/vr_glove_model");
+            obj?.SetActive(offOnToggle == 2 ? !obj.activeSelf : offOnToggle == 1);
+        }
+
+    }// Class CPlugin
 }// Namespace
 #endif
