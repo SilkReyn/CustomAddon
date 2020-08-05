@@ -41,14 +41,14 @@ namespace Mocap
         {
             mNode = isLeft ? XRNode.LeftHand : XRNode.RightHand;
             mRotOffs = Quaternion.Euler(mOffsetAngles.x, mOffsetAngles.y, mOffsetAngles.z);
-            if (mStartAsLeft != isLeft)
-            {
-                mStartAsLeft = isLeft;
-            }
+            //if (mStartAsLeft != isLeft)
+            //{
+            //    mStartAsLeft = isLeft;
+            //}
             RefreshDevice();
         }
 
-        public bool IsLeft => mNode == XRNode.LeftHand;
+        public bool IsLeft => mStartAsLeft;
 
         void Awake()
         {

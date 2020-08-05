@@ -6,8 +6,8 @@ namespace Mocap
     public class CFootLink : MonoBehaviour
     {
         public Transform pivotTrns;
-        public Transform headTrns;
-        public Transform handTarget;
+        public Transform headTrns;  // TODO Name "HeadTarget" (is not the head bone!)
+        public Transform handTarget;  // deprecated
         public Transform altTarget=null;
 
         public float     maxDragLengthSqr;  // Max foot distance relative to head
@@ -15,25 +15,32 @@ namespace Mocap
         public Vector3   footPlacing;       // Signed offset from foot relative to hand or pivot
         public float     followSpeed;       // How fast foots move to target [m/s]
         public bool      isLeft;
-        public int       mouseBtn;
+        public int       mouseBtn;  // deprecated
         
         Vector3 targetPos = Vector3.zero;
-        Vector3 altTargetPos = Vector3.zero;
+        //Vector3 altTargetPos = Vector3.zero;
         Vector3 altTarOffs = Vector3.zero;
         //bool  controlStarted = false;
         //float ctrlStartHeight = 0f;
 
-        static byte movingLeg = 0;
+        static System.Collections.BitArray movingLeg = new System.Collections.BitArray(2);
 
+
+        void Awake()
+        {
+            targetPos = transform.position;
+        }
 
         void Update()
         {
-            if (altTarget != null)
-            {
-                // Set the target position.
-                targetPos = altTarget.position + altTarOffs;
+            if (movingLeg.Get(isLeft ? 0 : 1) && Mathf.Abs((transform.position - targetPos).sqrMagnitude) < 1e-4)
+            {// Unset moving
+                movingLeg[isLeft ? 0 : 1] = false;
+            }
 
-                // Set foot rotation
+            if (altTarget != null && Mathf.Abs((altTarget.position + altTarOffs).y - (pivotTrns.position.y + footPlacing.y)) > 4e-2)
+            {// Override (foot lifted)
+                /*targetPos = altTarget.position + altTarOffs;
                 Vector3 vec = headTrns.position - pivotTrns.position;
                 vec.y = 0;
                 if ((vec.sqrMagnitude > Mathf.Abs(maxLeanLengthSqr)) || (Vector3.Dot(vec, pivotTrns.forward) < -Mathf.Abs(footPlacing.z)))
@@ -44,82 +51,59 @@ namespace Mocap
                     {
                         transform.LookAt(transform.position + vec);
                     }
-                }
+                }*/
+                
+                SetTarget(ref headTrns, 0f, 0f, 0f);
             }
-            /*else if (Input.GetMouseButton(mouseBtn))  // control override
-            {
-                movingLeg = 0;
-                if (controlStarted == false)
-                {
-                    controlStarted = true;
-                    ctrlStartHeight = handTarget.position.y - transform.position.y;
-                }
-                SetTarget(ref handTarget, 0, -ctrlStartHeight, footPlacing.z);
-            }
-            else if (controlStarted)
-            { // Quit manual control
-                controlStarted = false;
-                targetPos.y = pivotTrns.position.y + footPlacing.y;
-            }*/
-            else
-            {
-                if ((isLeft && (movingLeg == 1)) || (!isLeft && (movingLeg == 2)))
-                {
-                    if (Mathf.Abs((transform.position - targetPos).sqrMagnitude) < 1e-4)
-                    {
-                        movingLeg = 0;
+            else if ((isLeft && !movingLeg.Get(1)) || (!isLeft && !movingLeg.Get(0)))  // Always keep one foot fix to avoid hovering
+            {// None or only this foot is moving
+                Vector3 dist = headTrns.position - transform.position;  //from trans to head
+                dist.y = 0;
+                if (dist.sqrMagnitude > Mathf.Abs(maxDragLengthSqr))
+                {// drag legs
+                    if (90 > Vector3.Angle(pivotTrns.right, dist))// seems to be always positive and under 180
+                    {// lean right
+                        if (isLeft)
+                        {
+                            SetTarget(ref pivotTrns, 0, footPlacing.y, 0.0f);
+                        }
+                    }
+                    else
+                    {// lean left
+                        if (!isLeft)
+                        {
+                            SetTarget(ref pivotTrns, 0, footPlacing.y, 0.0f);
+                        }
                     }
                 }
-
-                if (movingLeg == 0)  // Always keep one foot fix on the ground to avoid hovering
-                {
-                    Vector3 dist = headTrns.position - transform.position;  //from trans to head
+                else
+                {// stabilize
+                    dist = headTrns.position - pivotTrns.position;
                     dist.y = 0;
-                    if (dist.sqrMagnitude > Mathf.Abs(maxDragLengthSqr))
-                    {// drag legs
-                        if (90 > Vector3.Angle(pivotTrns.right, dist))// seems to be always positive and under 180
+                    if ((dist.sqrMagnitude > Mathf.Abs(maxLeanLengthSqr)) || (Vector3.Dot(dist, pivotTrns.forward) < -Mathf.Abs(footPlacing.z)))
+                    {
+                        if (90 > Vector3.Angle(pivotTrns.right, dist))
                         {// lean right
-                            if (isLeft)
+                            if (!isLeft)
                             {
-                                SetTarget(ref pivotTrns, 0, footPlacing.y, 0.0f);
+                                SetTarget(ref headTrns, footPlacing.x, -headTrns.localPosition.y + footPlacing.y, 0.0f);
                             }
                         }
                         else
                         {// lean left
-                            if (!isLeft)
+                            if (isLeft)
                             {
-                                SetTarget(ref pivotTrns, 0, footPlacing.y, 0.0f);
+                                SetTarget(ref headTrns, -footPlacing.x, -headTrns.localPosition.y + footPlacing.y, 0.0f);
                             }
                         }
                     }
-                    else
-                    {// lean over
-                        dist = headTrns.position - pivotTrns.position;
-                        dist.y = 0;
-                        if ((dist.sqrMagnitude > Mathf.Abs(maxLeanLengthSqr)) || (Vector3.Dot(dist, pivotTrns.forward) < -Mathf.Abs(footPlacing.z)))
-                        {
-                            if (90 > Vector3.Angle(pivotTrns.right, dist))// seems to be always positive and under 180
-                            {// lean right
-                                if (!isLeft)
-                                {
-                                    SetTarget(ref headTrns, footPlacing.x, -headTrns.localPosition.y + footPlacing.y, 0.0f);
-                                }
-                            }
-                            else
-                            {// lean left
-                                if (isLeft)
-                                {
-                                    SetTarget(ref headTrns, -footPlacing.x, -headTrns.localPosition.y + footPlacing.y, 0.0f);
-                                }
-                            }
-                        }
-                    }
-                }//legs not in motion
+                }
+                
             }
 
             if (targetPos.y < pivotTrns.position.y)
             { // Its already under under the ground.
-                targetPos.y = pivotTrns.position.y;
+                targetPos.y = pivotTrns.position.y + footPlacing.y;
             }
 
             // Move to position
@@ -129,17 +113,22 @@ namespace Mocap
 
         void SetTarget(ref Transform refPos, float offsX, float offsY, float offsZ)
         {
-            if (movingLeg != 0)
-                return;
+            //if (movingLeg.Get(0) || movingLeg.Get(1))
+            //    return;
 
             // Set the target position.
-            targetPos = refPos.position + (refPos.right * offsX) + (refPos.forward * offsZ);
-            targetPos.y += offsY;
-            
-            if (Mathf.Abs((transform.position - targetPos).sqrMagnitude) > 1e-4)
+            if (null == altTarget)
             {
-                movingLeg = isLeft ? (byte)1 : (byte)2;
+                targetPos = refPos.position + (refPos.right * offsX) + (refPos.forward * offsZ);
+                targetPos.y = Mathf.Max(targetPos.y + offsY, pivotTrns.position.y + footPlacing.y);
             }
+            else
+            {
+                targetPos = altTarget.position + altTarOffs;
+            }
+
+            // Set moving
+            movingLeg[isLeft ? 0 : 1] = Mathf.Abs((transform.position - targetPos).sqrMagnitude) > 1e-4;
 
             // Set foot rotation
             Vector3 fwdHnd = refPos.forward;  // normed

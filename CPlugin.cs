@@ -158,7 +158,7 @@ namespace CustomAddon
                         mAvatars[1] = mAvatarBase.transform.Find("IK_Link_Pivot/Sakura").gameObject;
                         mAvatars[2] = mAvatarBase.transform.Find("IK_Link_Pivot/SonicoKB").gameObject;
 
-                        GameObject.Find("TrackedInput/TrackingOrigin/HMD/Model")?.SetActive(false);
+                        //GameObject.Find("TrackedInput/TrackingOrigin/HMD/Model")?.SetActive(false);
                         ToggleVrGloves(0);
                     }
                 }
@@ -167,7 +167,7 @@ namespace CustomAddon
                     //mAvatarBase.SetActive(!mAvatarBase.activeSelf);
                     UnityEngine.Object.Destroy(mAvatarBase);
                     mAvatarBase = null;
-                    GameObject.Find("TrackedInput/TrackingOrigin/HMD/Model")?.SetActive(true);
+                    //GameObject.Find("TrackedInput/TrackingOrigin/HMD/Model")?.SetActive(true);
                     ToggleVrGloves(1);
                 }
             }
